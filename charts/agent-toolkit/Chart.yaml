@@ -1,0 +1,17 @@
+apiVersion: v2
+name: agent-toolkit
+description: A Helm chart for Agent Toolkit - Multi-agent orchestration and tool management system
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - agent
+  - toolkit
+  - orchestration
+  - tools
+  - multi-agent
+maintainers:
+  - name: Agent Toolkit Team
+    email: team@agent-toolkit.dev
+sources:
+  - https://github.com/agent-toolkit/agent-toolkit

@@ -1,0 +1,198 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v0.1.0)'
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.12'
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/agent-toolkit
+
+jobs:
+  build:
+    name: Build and Push Images
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          if [ -z "$VERSION" ]; then
+            VERSION=${{ github.event.inputs.version }}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha,prefix=
+            type=raw,value=latest,enable=false
+
+      - name: Build and push shared
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.base
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-shared:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-shared:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push registry
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.registry
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-registry:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-registry:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push adapter
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.adapter
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-adapter:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-adapter:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push runtime
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.runtime
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-runtime:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-runtime:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push orchestrator
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.orchestrator
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-orchestrator:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-orchestrator:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push observability
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.observability
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-observability:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-observability:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release-helm:
+    name: Release Helm Chart
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.14.0
+
+      - name: Install chart-releaser
+        run: |
+          cr download
+
+      - name: Package Helm chart
+        run: |
+          cr package charts/agent-toolkit/
+
+      - name: Upload Helm chart
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart
+          path: .cr-release-packages/*.tgz
+
+      - name: Push to GitHub Pages
+        run: |
+          cr upload --owner $(echo "${{ github.repository }}" | cut -d '/' -f 1) --repo $(echo "${{ github.repository }}" | cut -d '/' -f 2) --version ${{ needs.build.outputs.version }}
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build, release-helm]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.build.outputs.version }}
+          name: Release ${{ needs.build.outputs.version }}
+          draft: false
+          prerelease: ${{ needs.build.outputs.version contains '-' }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    steps:
+      - name: Send notification
+        run: |
+          echo "Release ${{ needs.create-release.outputs.version }} completed successfully!"

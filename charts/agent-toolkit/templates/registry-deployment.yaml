@@ -1,0 +1,76 @@
+{{- if .Values.registry.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent-toolkit.fullname" . }}-registry
+  labels:
+    {{- include "agent-toolkit.labels" . | nindent 4 }}
+    component: registry
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.ports.registry }}
+      targetPort: registry
+      protocol: TCP
+      name: registry
+  selector:
+    {{- include "agent-toolkit.selectorLabels" . | nindent 4 }}
+    component: registry
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent-toolkit.fullname" . }}-registry
+  labels:
+    {{- include "agent-toolkit.labels" . | nindent 4 }}
+    component: registry
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "agent-toolkit.selectorLabels" . | nindent 6 }}
+      component: registry
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "agent-toolkit.selectorLabels" . | nindent 8 }}
+        component: registry
+    spec:
+      serviceAccountName: {{ include "agent-toolkit.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: registry
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.registry.repository || .Values.image.repository }}/registry:{{ .Values.image.tag || .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: registry
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: ENVIRONMENT
+              value: {{ .Values.config.environment }}
+            - name: DATABASE__URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent-toolkit.fullname" . }}
+                  key: database_url
+            - name: REDIS__HOST
+              value: {{ .Values.config.redis.host }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: registry
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: registry
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+{{- end }}

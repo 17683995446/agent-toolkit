@@ -1,0 +1,70 @@
+{{- if .Values.observability.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent-toolkit.fullname" . }}-observability
+  labels:
+    {{- include "agent-toolkit.labels" . | nindent 4 }}
+    component: observability
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+    - port: {{ .Values.service.ports.tracing }}
+      targetPort: tracing
+      protocol: TCP
+      name: tracing
+  selector:
+    {{- include "agent-toolkit.selectorLabels" . | nindent 4 }}
+    component: observability
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent-toolkit.fullname" . }}-observability
+  labels:
+    {{- include "agent-toolkit.labels" . | nindent 4 }}
+    component: observability
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "agent-toolkit.selectorLabels" . | nindent 6 }}
+      component: observability
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "agent-toolkit.selectorLabels" . | nindent 8 }}
+        component: observability
+    spec:
+      serviceAccountName: {{ include "agent-toolkit.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: observability
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.observability.repository || .Values.image.repository }}/observability:{{ .Values.image.tag || .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+            - name: tracing
+              containerPort: 4317
+              protocol: TCP
+          env:
+            - name: ENVIRONMENT
+              value: {{ .Values.config.environment }}
+            - name: REDIS__HOST
+              value: {{ .Values.config.redis.host }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+{{- end }}

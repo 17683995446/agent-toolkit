@@ -1,0 +1,63 @@
+{{- if .Values.adapter.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent-toolkit.fullname" . }}-adapter
+  labels:
+    {{- include "agent-toolkit.labels" . | nindent 4 }}
+    component: adapter
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.ports.adapter }}
+      targetPort: adapter
+      protocol: TCP
+      name: adapter
+  selector:
+    {{- include "agent-toolkit.selectorLabels" . | nindent 4 }}
+    component: adapter
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent-toolkit.fullname" . }}-adapter
+  labels:
+    {{- include "agent-toolkit.labels" . | nindent 4 }}
+    component: adapter
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "agent-toolkit.selectorLabels" . | nindent 6 }}
+      component: adapter
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "agent-toolkit.selectorLabels" . | nindent 8 }}
+        component: adapter
+    spec:
+      serviceAccountName: {{ include "agent-toolkit.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: adapter
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.adapter.repository || .Values.image.repository }}/adapter:{{ .Values.image.tag || .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: adapter
+              containerPort: 8001
+              protocol: TCP
+          env:
+            - name: ENVIRONMENT
+              value: {{ .Values.config.environment }}
+            - name: REDIS__HOST
+              value: {{ .Values.config.redis.host }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+{{- end }}

@@ -1,0 +1,166 @@
+# Agent Toolkit Docker Compose 配置
+# 支持开发、测试、生产环境
+
+version: '3.8'
+
+services:
+  # ================================
+  # 应用服务
+  # ================================
+  agent-toolkit:
+    build:
+      context: .
+      target: ${BUILD_TARGET:-production}
+    image: agent-toolkit:${IMAGE_TAG:-latest}
+    container_name: agent-toolkit-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      - AGENT_TOOLKIT_ENVIRONMENT=${ENVIRONMENT:-production}
+      - AGENT_TOOLKIT_DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/agent_toolkit
+      - AGENT_TOOLKIT_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - agent-toolkit-network
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ================================
+  # PostgreSQL 数据库
+  # ================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: agent-toolkit-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=agent_toolkit
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - agent-toolkit-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ================================
+  # Redis 缓存
+  # ================================
+  redis:
+    image: redis:7-alpine
+    container_name: agent-toolkit-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - agent-toolkit-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ================================
+  # Prometheus 监控
+  # ================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: agent-toolkit-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - agent-toolkit-network
+    profiles:
+      - monitoring
+
+  # ================================
+  # Grafana 可视化
+  # ================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: agent-toolkit-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./deployments/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    networks:
+      - agent-toolkit-network
+    profiles:
+      - monitoring
+
+  # ================================
+  # Nginx 反向代理（生产环境）
+  # ================================
+  nginx:
+    image: nginx:alpine
+    container_name: agent-toolkit-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deployments/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./deployments/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - agent-toolkit
+    networks:
+      - agent-toolkit-network
+    profiles:
+      - production
+
+# ================================
+# 网络配置
+# ================================
+networks:
+  agent-toolkit-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ================================
+# 数据卷
+# ================================
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local

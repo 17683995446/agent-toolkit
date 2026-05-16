@@ -1,0 +1,68 @@
+{{- if .Values.orchestrator.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent-toolkit.fullname" . }}-orchestrator
+  labels:
+    {{- include "agent-toolkit.labels" . | nindent 4 }}
+    component: orchestrator
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.ports.orchestrator }}
+      targetPort: orchestrator
+      protocol: TCP
+      name: orchestrator
+  selector:
+    {{- include "agent-toolkit.selectorLabels" . | nindent 4 }}
+    component: orchestrator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent-toolkit.fullname" . }}-orchestrator
+  labels:
+    {{- include "agent-toolkit.labels" . | nindent 4 }}
+    component: orchestrator
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "agent-toolkit.selectorLabels" . | nindent 6 }}
+      component: orchestrator
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "agent-toolkit.selectorLabels" . | nindent 8 }}
+        component: orchestrator
+    spec:
+      serviceAccountName: {{ include "agent-toolkit.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: orchestrator
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.orchestrator.repository || .Values.image.repository }}/orchestrator:{{ .Values.image.tag || .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: orchestrator
+              containerPort: 8003
+              protocol: TCP
+          env:
+            - name: ENVIRONMENT
+              value: {{ .Values.config.environment }}
+            - name: DATABASE__URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent-toolkit.fullname" . }}
+                  key: database_url
+            - name: REDIS__HOST
+              value: {{ .Values.config.redis.host }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+{{- end }}

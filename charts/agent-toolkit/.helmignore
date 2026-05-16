@@ -1,0 +1,42 @@
+# Patterns to ignore when building packages.
+*.tgz
+*.tar.gz
+
+# Virtual files
+.git/
+.gitignore
+.github/
+.gitlab-ci.yml
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+LICENSE
+CHANGELOG.md
+
+# CI/CD
+Makefile
+tox.ini
+pytest.ini
+.helmignore
+
+# Test files
+tests/
+test/
+*_test.go
+*_test.py
+
+# Example files
+example*
+example/
+examples/

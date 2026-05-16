@@ -1,0 +1,109 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-toolkit"
+version = "0.1.0"
+description = "Multi-agent orchestration and tool management system"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Agent Toolkit Team", email = "team@agent-toolkit.dev"}
+]
+keywords = ["agent", "toolkit", "orchestration", "tools", "multi-agent"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.1.0",
+    "sqlalchemy[asyncio]>=2.0.25",
+    "asyncpg>=0.29.0",
+    "aiosqlite>=0.19.0",
+    "redis>=5.0.1",
+    "structlog>=24.1.0",
+    "httpx>=0.26.0",
+    "click>=8.1.7",
+    "rich>=13.7.0",
+    "prometheus-client>=0.19.0",
+    "opentelemetry-api>=1.22.0",
+    "opentelemetry-sdk>=1.22.0",
+    "opentelemetry-exporter-otlp>=1.22.0",
+    "websockets>=12.0",
+    "PyYAML>=6.0.1",
+    "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.1",
+    "pytest-mock>=3.12",
+    "black>=24.0",
+    "isort>=5.13",
+    "flake8>=7.0",
+    "mypy>=1.8",
+    "bandit>=1.7",
+]
+database = [
+    "asyncpg>=0.29",
+    "aiosqlite>=0.19",
+    "alembic>=1.13",
+]
+observability = [
+    "prometheus-client>=0.19",
+    "opentelemetry-api>=1.22",
+    "opentelemetry-sdk>=1.22",
+    "opentelemetry-exporter-otlp>=1.22",
+]
+
+[project.scripts]
+agent-toolkit-registry = "agent_toolkit.registry.cli:registry_cli"
+agent-toolkit-adapter = "agent_toolkit.adapter.cli:adapter_cli"
+agent-toolkit-runtime = "agent_toolkit.runtime.cli:runtime_cli"
+agent-toolkit-orchestrator = "agent_toolkit.orchestrator.cli:orchestrator_cli"
+agent-toolkit-observability = "agent_toolkit.observability.cli:observability_cli"
+
+[project.urls]
+Homepage = "https://github.com/agent-toolkit/agent-toolkit"
+Documentation = "https://agent-toolkit.readthedocs.io"
+Repository = "https://github.com/agent-toolkit/agent-toolkit.git"
+Issues = "https://github.com/agent-toolkit/agent-toolkit/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agent_toolkit*"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+agent_toolkit = ["py.typed"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

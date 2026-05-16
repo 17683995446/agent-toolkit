@@ -1,0 +1,63 @@
+environment: production
+debug: false
+
+database:
+  url: postgresql+asyncpg://user:password@postgres:5432/agent_toolkit
+  pool_size: 20
+  max_overflow: 40
+  echo: false
+  pool_timeout: 30
+
+redis:
+  host: redis
+  port: 6379
+  db: 0
+  password: ${REDIS_PASSWORD}
+  ssl: true
+
+logging:
+  level: INFO
+  format: json
+  output:
+    - stdout
+    - file
+  file_path: /var/log/agent_toolkit/agent_toolkit.log
+
+observability:
+  enable_tracing: true
+  enable_metrics: true
+  tracing_endpoint: http://jaeger-collector:4317
+  metrics_port: 9090
+  sample_rate: 0.1
+
+security:
+  secret_key: ${SECRET_KEY}
+  algorithm: HS256
+  access_token_expire_minutes: 30
+  cors_origins:
+    - https://app.example.com
+
+runtime:
+  executor_type: kubernetes
+  default_timeout: 600
+  max_concurrent_executions: 200
+  resource_limits:
+    cpu_limit: "4"
+    memory_limit: "8Gi"
+    disk_limit: "20Gi"
+
+registry:
+  host: 0.0.0.0
+  port: 8000
+  workers: 8
+  reload: false
+
+adapter:
+  http_timeout: 60
+  max_retries: 5
+  retry_delay: 2.0
+  enable_caching: true
+  cache_ttl: 600
+
+project_root: /app
+config_dir: /app/configs

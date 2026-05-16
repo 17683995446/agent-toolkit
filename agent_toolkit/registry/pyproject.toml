@@ -1,0 +1,16 @@
+[project]
+name = "agent-toolkit-registry"
+version = "0.1.0"
+description = "Tool Registry Module for Agent Toolkit"
+requires-python = ">=3.11"
+dependencies = [
+    "agent-toolkit-shared @ file:///${PROJECT_ROOT}/agent_toolkit/shared",
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

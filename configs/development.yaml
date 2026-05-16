@@ -1,0 +1,62 @@
+environment: development
+debug: true
+
+database:
+  url: sqlite:///./agent_toolkit_dev.db
+  pool_size: 5
+  max_overflow: 10
+  echo: true
+  pool_timeout: 30
+
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+  ssl: false
+
+logging:
+  level: DEBUG
+  format: console
+  output:
+    - stdout
+  file_path: ./logs/agent_toolkit_dev.log
+
+observability:
+  enable_tracing: true
+  enable_metrics: true
+  tracing_endpoint: http://localhost:4317
+  metrics_port: 9090
+  sample_rate: 1.0
+
+security:
+  secret_key: dev-secret-key-change-in-production
+  algorithm: HS256
+  access_token_expire_minutes: 60
+  cors_origins:
+    - http://localhost:3000
+    - http://localhost:8080
+
+runtime:
+  executor_type: local
+  default_timeout: 300
+  max_concurrent_executions: 50
+  resource_limits:
+    cpu_limit: "1"
+    memory_limit: "2Gi"
+    disk_limit: "5Gi"
+
+registry:
+  host: 0.0.0.0
+  port: 8000
+  workers: 2
+  reload: true
+
+adapter:
+  http_timeout: 30
+  max_retries: 3
+  retry_delay: 1.0
+  enable_caching: true
+  cache_ttl: 300
+
+project_root: .
+config_dir: ./configs

@@ -1,0 +1,28 @@
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app /var/log/agent_toolkit && \
+    chown -R appuser:appuser /app /var/log/agent_toolkit
+
+COPY --chown=appuser:appuser . /app
+
+RUN pip install --no-cache-dir -e /app/shared
+
+USER appuser
+
+EXPOSE 9090 4317 4318
+
+ENV ENVIRONMENT=production
+
+CMD ["python", "-m", "agent_toolkit.observability.main"]

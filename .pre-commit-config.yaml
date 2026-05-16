@@ -1,0 +1,98 @@
+# Pre-commit Hooks 配置
+
+本项目使用 pre-commit 进行代码质量检查。
+
+## 安装
+
+```bash
+# 安装 pre-commit
+pip install pre-commit
+
+# 安装 hooks
+pre-commit install
+```
+
+## Hooks 列表
+
+### 1. 代码格式化
+- **black**: 代码格式化
+- **isort**: Import 排序
+
+### 2. 代码检查
+- **ruff**: Linting 和代码检查
+- **mypy**: 类型检查
+
+### 3. 安全检查
+- **bandit**: 安全漏洞扫描
+- **safety**: 依赖安全检查
+
+### 4. Git 相关
+- **check-yaml**: YAML 语法检查
+- **check-json**: JSON 语法检查
+- **check-added-large-files**: 检查大文件
+- **check-merge-conflict**: 检查合并冲突标记
+- **trailing-whitespace**: 检查尾部空白
+
+### 5. 测试
+- **pytest**: 运行测试（可选，需要配置）
+
+## 配置文件
+
+配置文件位于 `.pre-commit-config.yaml`
+
+## 使用方法
+
+```bash
+# 运行所有 hooks
+pre-commit run --all-files
+
+# 运行特定 hook
+pre-commit run ruff
+
+# 更新 hook 版本
+pre-commit autoupdate
+
+# 跳过 hook（不推荐）
+git commit --no-verify
+```
+
+## CI 集成
+
+在 GitHub Actions 中会自动运行 pre-commit：
+
+```yaml
+# .github/workflows/pr-checks.yml
+- name: Run pre-commit
+  run: |
+    pip install pre-commit
+    pre-commit install
+    pre-commit run --all-files
+```
+
+## 故障排除
+
+### Hook 失败
+
+如果 pre-commit hook 失败，修复问题后重新提交：
+
+```bash
+# 查看失败详情
+pre-commit run --all-files --show-diff-on-failure
+
+# 修复后重新提交
+git add .
+git commit
+```
+
+### 跳过特定文件
+
+在 `.pre-commit-config.yaml` 中配置忽略：
+
+```yaml
+repos:
+  - repo: ruff
+    rev: v0.2.0
+    hooks:
+      - id: ruff
+        args: [--ignore, "E501,S101"]
+```

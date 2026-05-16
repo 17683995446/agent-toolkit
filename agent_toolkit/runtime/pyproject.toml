@@ -1,0 +1,14 @@
+[project]
+name = "agent-toolkit-runtime"
+version = "0.1.0"
+description = "Tool Runtime Module for Agent Toolkit"
+requires-python = ">=3.11"
+dependencies = [
+    "agent-toolkit-shared @ file:///${PROJECT_ROOT}/agent_toolkit/shared",
+    "docker>=7.0.0",
+    "kubernetes>=28.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

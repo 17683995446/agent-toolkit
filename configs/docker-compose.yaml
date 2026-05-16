@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: agent_toolkit
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-agent_toolkit_dev}
+      POSTGRES_DB: agent_toolkit
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_toolkit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  registry:
+    build:
+      context: .
+      dockerfile: Dockerfile.registry
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE__URL=postgresql+asyncpg://agent_toolkit:${DB_PASSWORD:-agent_toolkit_dev}@postgres:5432/agent_toolkit
+      - REDIS__HOST=redis
+      - ENVIRONMENT=development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./configs:/app/configs:ro
+
+  adapter:
+    build:
+      context: .
+      dockerfile: Dockerfile.adapter
+    ports:
+      - "8001:8001"
+    environment:
+      - REDIS__HOST=redis
+      - ENVIRONMENT=development
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  runtime:
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime
+    ports:
+      - "8002:8002"
+    environment:
+      - REDIS__HOST=redis
+      - ENVIRONMENT=development
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE__URL=postgresql+asyncpg://agent_toolkit:${DB_PASSWORD:-agent_toolkit_dev}@postgres:5432/agent_toolkit
+      - REDIS__HOST=redis
+      - ENVIRONMENT=development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  observability:
+    build:
+      context: .
+      dockerfile: Dockerfile.observability
+    ports:
+      - "9090:9090"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      - REDIS__HOST=redis
+      - ENVIRONMENT=development
+
+volumes:
+  postgres_data:
+  redis_data:
