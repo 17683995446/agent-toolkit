@@ -1,18 +1,36 @@
 """Distributed tracing with OpenTelemetry."""
 
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable
 from contextvars import ContextVar
 from functools import wraps
 
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.trace import Span, Status, StatusCode
-from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-
 from agent_toolkit.shared.structured_logging import LoggerMixin
+
+# 可选的 OpenTelemetry 导入
+try:
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.trace import Span, Status, StatusCode
+    from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+    HAS_OPENTELEMETRY = True
+except ImportError:
+    HAS_OPENTELEMETRY = False
+    # 定义占位符类型
+    class Span:
+        """Placeholder for Span when opentelemetry is not available."""
+        pass
+    
+    trace = None
+    TracerProvider = None
+    BatchSpanProcessor = None
+    ConsoleSpanExporter = None
+    Resource = None
+    Status = None
+    StatusCode = None
+    TraceContextTextMapPropagator = None
 
 
 trace_context: ContextVar[Optional[Span]] = ContextVar("trace_context", default=None)
@@ -22,10 +40,14 @@ class TracingManager(LoggerMixin):
     """Manager for distributed tracing."""
 
     def __init__(self):
-        self._tracer: Optional[trace.Tracer] = None
-        self._provider: Optional[TracerProvider] = None
-        self._propagator = TraceContextTextMapPropagator()
+        self._tracer: Optional[Any] = None
+        self._provider: Optional[Any] = None
+        self._propagator: Optional[Any] = None
         self._initialized = False
+        
+        # 如果可用，初始化占位符
+        if HAS_OPENTELEMETRY and TraceContextTextMapPropagator:
+            self._propagator = TraceContextTextMapPropagator()
 
     def initialize(
         self,
@@ -35,6 +57,11 @@ class TracingManager(LoggerMixin):
         exporter_endpoint: Optional[str] = None
     ) -> None:
         """Initialize the tracing provider."""
+        if not HAS_OPENTELEMETRY:
+            self.logger.warning("opentelemetry_not_available", message="Tracing will be disabled")
+            self._initialized = True
+            return
+            
         if self._initialized:
             self.logger.warning("tracing_already_initialized")
             return
@@ -71,8 +98,11 @@ class TracingManager(LoggerMixin):
             exporter_type=exporter_type
         )
 
-    def get_tracer(self) -> trace.Tracer:
+    def get_tracer(self) -> Any:
         """Get the tracer instance."""
+        if not HAS_OPENTELEMETRY:
+            return None
+            
         if not self._tracer:
             self.initialize()
         return self._tracer
@@ -82,9 +112,14 @@ class TracingManager(LoggerMixin):
         name: str,
         attributes: Optional[Dict[str, Any]] = None,
         parent_span: Optional[Span] = None
-    ) -> Span:
+    ) -> Optional[Span]:
         """Start a new span."""
+        if not HAS_OPENTELEMETRY:
+            return None
+            
         tracer = self.get_tracer()
+        if not tracer:
+            return None
 
         span_kwargs = {}
         if parent_span:
@@ -98,8 +133,11 @@ class TracingManager(LoggerMixin):
 
         return span
 
-    def end_span(self, span: Span, status: str = "ok", error: Optional[str] = None) -> None:
+    def end_span(self, span: Optional[Span], status: str = "ok", error: Optional[str] = None) -> None:
         """End a span."""
+        if not HAS_OPENTELEMETRY or not span:
+            return
+            
         if error:
             span.set_status(Status(StatusCode.ERROR, error))
             span.record_exception(error)
@@ -110,6 +148,9 @@ class TracingManager(LoggerMixin):
 
     def create_span_context(self) -> Dict[str, str]:
         """Create a trace context for propagation."""
+        if not HAS_OPENTELEMETRY or not self._propagator:
+            return {}
+            
         span = trace_context.get()
         if span:
             return self._propagator.inject({})
@@ -117,11 +158,17 @@ class TracingManager(LoggerMixin):
 
     def extract_span_context(self, headers: Dict[str, str]) -> Optional[Span]:
         """Extract span context from headers."""
+        if not HAS_OPENTELEMETRY or not self._propagator:
+            return None
+            
         context = self._propagator.extract(carrier=headers)
         return context
 
     def get_current_span(self) -> Optional[Span]:
         """Get the current active span."""
+        if not HAS_OPENTELEMETRY or not trace:
+            return None
+            
         return trace.get_current_span()
 
     def shutdown(self) -> None:

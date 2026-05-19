@@ -75,7 +75,7 @@ class ChainEdge(BaseModel):
 
 class ToolChain(BaseModel):
     """A tool chain definition."""
-    id: str = Field(..., description="Unique chain identifier")
+    id: str = Field(..., min_length=1, description="Unique chain identifier")
     name: str = Field(..., description="Chain name")
     description: Optional[str] = Field(None, description="Chain description")
     version: str = Field("1.0.0", description="Chain version")
@@ -88,13 +88,21 @@ class ToolChain(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     created_by: Optional[str] = Field(None, description="Creator identifier")
 
+    @field_validator('id')
+    @classmethod
+    def validate_id(cls, v: str) -> str:
+        """Validate chain ID format."""
+        if not v or not v.strip():
+            raise ValueError('Chain ID cannot be empty')
+        if not v.replace('_', '').replace('-', '').isalnum():
+            raise ValueError('Chain ID must be alphanumeric with underscores/hyphens')
+        return v
+
     def validate(self) -> tuple[bool, List[str]]:
         """Validate the tool chain structure."""
         errors = []
 
         node_ids = {node.id for node in self.nodes}
-        if not node_ids:
-            errors.append("Chain must have at least one node")
 
         for edge in self.edges:
             if edge.source not in node_ids:

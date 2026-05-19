@@ -129,18 +129,21 @@ class NotFoundError(AgentToolkitException):
         self, 
         message: str,
         resource_type: Optional[str] = None,
-        resource_id: Optional[Any] = None
+        resource_id: Optional[Any] = None,
+        details: Optional[Dict[str, Any]] = None
     ):
-        details = {}
+        all_details = {}
+        if details:
+            all_details.update(details)
         if resource_type:
-            details["resource_type"] = resource_type
+            all_details["resource_type"] = resource_type
         if resource_id:
-            details["resource_id"] = resource_id
+            all_details["resource_id"] = resource_id
         
         super().__init__(
             error_code=ErrorCode.NOT_FOUND,
             message=message,
-            details=details if details else None
+            details=all_details if all_details else None
         )
 
 

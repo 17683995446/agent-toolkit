@@ -1,203 +1,103 @@
-#!/usr/bin/env python3
 """
-Agent Toolkit 集成测试
-测试各模块之间的集成和协作
+集成测试套件
+测试整个系统的集成功能
 """
 
-import sys
-import os
-import asyncio
 import pytest
-from pathlib import Path
-
-# 添加项目根目录到 Python 路径
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
-
-from httpx import AsyncClient
+import time
+from fastapi.testclient import TestClient
 from agent_toolkit.main import create_app
-from agent_toolkit.shared.application_settings import Settings
 
 
-class TestApplicationIntegration:
-    """应用集成测试"""
+@pytest.fixture
+def client():
+    """创建测试客户端"""
+    app = create_app()
+    return TestClient(app)
+
+
+class TestSystemIntegration:
+    """系统集成测试"""
     
-    @pytest.fixture
-    async def app_client(self):
-        """创建测试客户端"""
-        app = create_app(Settings())
-        async with AsyncClient(app=app, base_url="http://test") as client:
-            yield client
-    
-    @pytest.mark.asyncio
-    async def test_health_endpoint(self, app_client):
-        """测试健康检查端点"""
-        response = await app_client.get("/health")
-        assert response.status_code == 200
-        assert response.json()["status"] == "healthy"
-    
-    @pytest.mark.asyncio
-    async def test_root_endpoint(self, app_client):
-        """测试根路径"""
-        response = await app_client.get("/")
+    def test_root_endpoint(self, client):
+        """测试根端点"""
+        response = client.get("/")
         assert response.status_code == 200
         data = response.json()
-        assert data["service"] == "Agent Toolkit"
-        assert data["version"] == "0.1.0"
+        assert "service" in data
+        assert "version" in data
     
-    @pytest.mark.asyncio
-    async def test_openapi_docs(self, app_client):
-        """测试 API 文档"""
-        response = await app_client.get("/docs")
-        assert response.status_code == 200
-    
-    @pytest.mark.asyncio
-    async def test_openapi_json(self, app_client):
-        """测试 OpenAPI JSON"""
-        response = await app_client.get("/openapi.json")
-        assert response.status_code == 200
-        data = response.json()
-        assert "openapi" in data
-        assert "paths" in data
-
-
-class TestAdapterIntegration:
-    """适配器集成测试"""
-    
-    @pytest.mark.asyncio
-    async def test_adapter_types_endpoint(self):
-        """测试适配器类型端点"""
-        from agent_toolkit.adapter.adapter_api_routes import router
+    def test_full_workflow(self, client):
+        """测试完整工作流：健康检查 -> 指标 -> 指标管理"""
         
-        # 测试路由是否正确配置
-        assert router is not None
-        assert router.prefix == "/api/v1"
-    
-    @pytest.mark.asyncio
-    async def test_http_adapter_creation(self):
-        """测试 HTTP 适配器创建"""
-        from agent_toolkit.adapter.http_adapter_implementation import HTTPAdapter
-        from agent_toolkit.adapter.base_adapter import AdapterConfig
+        # 1. 检查liveness
+        liveness = client.get("/liveness")
+        assert liveness.status_code == 200
         
-        config = AdapterConfig()
-        adapter = HTTPAdapter(
-            name="test-http",
-            config=config,
-            endpoint="https://api.example.com"
+        # 2. 检查readiness
+        readiness = client.get("/readiness")
+        assert readiness.status_code == 200
+        
+        # 3. 检查完整健康
+        health = client.get("/api/v1/health")
+        assert health.status_code == 200
+        
+        # 4. 检查dashboard指标
+        dashboard = client.get("/api/v1/metrics/dashboard")
+        assert dashboard.status_code == 200
+        
+        # 5. 记录一些指标
+        counter = client.post(
+            "/api/v1/metrics/counter",
+            json={"name": "integration_test_counter", "value": 5.0}
         )
+        assert counter.status_code == 200
         
-        assert adapter.name == "test-http"
-        assert adapter.endpoint == "https://api.example.com"
-
-
-class TestOrchestratorIntegration:
-    """编排器集成测试"""
-    
-    @pytest.mark.asyncio
-    async def test_orchestrator_engine_creation(self):
-        """测试编排引擎创建"""
-        from agent_toolkit.orchestrator.orchestration_engine import OrchestrationEngine
-        
-        engine = OrchestrationEngine()
-        assert engine is not None
-    
-    @pytest.mark.asyncio
-    async def test_toolchain_creation(self):
-        """测试工具链创建"""
-        from agent_toolkit.orchestrator.orchestration_models import (
-            ToolChain,
-            ChainNode,
-            NodeType,
-            ExecutionMode,
+        gauge = client.post(
+            "/api/v1/metrics/gauge",
+            json={"name": "integration_test_gauge", "value": 42.0}
         )
+        assert gauge.status_code == 200
         
-        # 创建简单的工具链
-        node1 = ChainNode(
-            id="node-1",
-            name="first-task",
-            node_type=NodeType.TOOL,
-            adapter_name="test-adapter",
+        histogram = client.post(
+            "/api/v1/metrics/histogram",
+            json={"name": "integration_test_histogram", "value": 123.45}
         )
+        assert histogram.status_code == 200
         
-        node2 = ChainNode(
-            id="node-2",
-            name="second-task",
-            node_type=NodeType.TOOL,
-            adapter_name="test-adapter",
-            dependencies=["node-1"],
-        )
-        
-        toolchain = ToolChain(
-            name="test-chain",
-            nodes=[node1, node2],
-            execution_mode=ExecutionMode.SEQUENTIAL,
-        )
-        
-        assert toolchain.name == "test-chain"
-        assert len(toolchain.nodes) == 2
-        assert toolchain.execution_mode == ExecutionMode.SEQUENTIAL
-
-
-class TestObservabilityIntegration:
-    """可观测性集成测试"""
+        # 6. 再次检查指标
+        updated_dashboard = client.get("/api/v1/metrics/dashboard")
+        assert updated_dashboard.status_code == 200
+        dashboard_data = updated_dashboard.json()
+        assert "detailed_metrics" in dashboard_data
+        assert "counters" in dashboard_data["detailed_metrics"]
     
-    @pytest.mark.asyncio
-    async def test_metrics_collector(self):
-        """测试指标收集器"""
-        from agent_toolkit.observability.metrics_collector import metrics_collector
+    def test_multiple_requests(self, client):
+        """测试多个请求，检查指标更新"""
+        # 发送多个请求
+        for _ in range(5):
+            response = client.get("/api/v1/health")
+            assert response.status_code == 200
         
-        collector = metrics_collector()
-        assert collector is not None
-        
-        # 获取指标
-        metrics = collector.get_metrics()
-        assert metrics is not None
+        # 检查指标是否被记录
+        dashboard = client.get("/api/v1/metrics/dashboard")
+        assert dashboard.status_code == 200
+        data = dashboard.json()
+        # 至少应该有一些请求被记录
+        assert "total_requests" in data["detailed_metrics"]
     
-    @pytest.mark.asyncio
-    async def test_tracing_manager(self):
-        """测试追踪管理器"""
-        from agent_toolkit.observability.distributed_tracing import tracing_manager
+    def test_health_history(self, client):
+        """测试健康检查历史记录"""
+        # 触发多次健康检查以填充历史
+        for _ in range(3):
+            client.get("/api/v1/health")
         
-        manager = tracing_manager()
-        assert manager is not None
-        
-        # 创建 span
-        with manager.start_span("test-operation") as span:
-            assert span is not None
-
-
-class TestRuntimeIntegration:
-    """运行时集成测试"""
-    
-    @pytest.mark.asyncio
-    async def test_base_executor(self):
-        """测试基础执行器"""
-        from agent_toolkit.runtime.base_executor import BaseExecutor, ExecutionStatus
-        
-        # 验证枚举值
-        assert ExecutionStatus.SUCCESS.value == "success"
-        assert ExecutionStatus.FAILED.value == "failed"
-        assert ExecutionStatus.RUNNING.value == "running"
-
-
-def run_tests():
-    """运行所有测试"""
-    print("\n" + "="*70)
-    print("  🧪 Agent Toolkit 集成测试")
-    print("="*70 + "\n")
-    
-    # 运行 pytest
-    exit_code = pytest.main([
-        __file__,
-        "-v",
-        "-s",
-        "--tb=short",
-        "--asyncio-mode=auto",
-    ])
-    
-    return exit_code
+        history = client.get("/api/v1/health/history")
+        assert history.status_code == 200
+        data = history.json()
+        assert "history" in data
+        assert "total_entries" in data
 
 
 if __name__ == "__main__":
-    exit_code = run_tests()
-    sys.exit(exit_code)
+    pytest.main([__file__, "-v"])

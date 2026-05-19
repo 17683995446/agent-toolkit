@@ -4,7 +4,14 @@ from functools import lru_cache
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 import os
-import yaml
+
+# Optional YAML import
+try:
+    import yaml
+    HAS_YAML = True
+except ImportError:
+    HAS_YAML = False
+    yaml = None
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -198,6 +205,9 @@ class Settings(BaseSettings):
 
     def _load_from_yaml(self, config_file: Path) -> None:
         """Load additional config from YAML file."""
+        if not HAS_YAML or yaml is None:
+            # YAML not available, just skip
+            return
         try:
             with open(config_file, "r") as f:
                 config_data = yaml.safe_load(f)

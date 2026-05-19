@@ -15,19 +15,43 @@ from agent_toolkit.orchestrator.orchestration_models import (
     ChainStatus,
     RetryPolicy,
 )
+from agent_toolkit.orchestrator.node_executors import (
+    ToolNodeExecutor,
+    ConditionNodeExecutor,
+    LoopNodeExecutor,
+    ParallelNodeExecutor,
+    MergeNodeExecutor,
+    InputNodeExecutor,
+    OutputNodeExecutor
+)
 from agent_toolkit.shared.structured_logging import LoggerMixin
 
 
 class OrchestrationEngine(LoggerMixin):
     """Engine for executing tool chains."""
 
-    def __init__(self):
+    def __init__(self, tool_registry: Any = None):
         self._active_executions: Dict[str, ExecutionContext] = {}
         self._node_executors: Dict[NodeType, Any] = {}
+        self._executors: Dict[NodeType, Any] = {}
+        
+        # 注册默认执行器
+        self._register_default_executors(tool_registry)
+
+    def _register_default_executors(self, tool_registry: Any = None):
+        """注册默认节点执行器。"""
+        self.register_node_executor(NodeType.TOOL, ToolNodeExecutor(tool_registry))
+        self.register_node_executor(NodeType.CONDITION, ConditionNodeExecutor())
+        self.register_node_executor(NodeType.LOOP, LoopNodeExecutor())
+        self.register_node_executor(NodeType.PARALLEL, ParallelNodeExecutor())
+        self.register_node_executor(NodeType.MERGE, MergeNodeExecutor())
+        self.register_node_executor(NodeType.INPUT, InputNodeExecutor())
+        self.register_node_executor(NodeType.OUTPUT, OutputNodeExecutor())
 
     def register_node_executor(self, node_type: NodeType, executor: Any) -> None:
         """Register an executor for a node type."""
         self._node_executors[node_type] = executor
+        self._executors[node_type] = executor  # 同步到 _executors 属性
         self.logger.info("node_executor_registered", node_type=node_type.value)
 
     async def execute_chain(
