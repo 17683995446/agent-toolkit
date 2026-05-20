@@ -222,12 +222,24 @@ health_registry.register_check("orchestrator", orchestrator_health_check)
 
 @router.get("", response_model=OverallHealth)
 async def get_health():
-    """Get comprehensive system health"""
+    """
+    Complete system health check endpoint.
+    Returns detailed health information for all registered checks.
+    """
+    logger.info("🔍 [HEALTH_CHECK] Starting comprehensive health check...")  # 日志1
+    start_time = time.time()
+    
     try:
+        # 运行所有健康检查
         health = await health_registry.get_overall_health()
+        logger.info(f"✅ [HEALTH_CHECK] Completed {health.total_checks} health checks")  # 日志2
+        
+        elapsed = time.time() - start_time
+        logger.info(f"📊 [HEALTH_CHECK] Overall status: {health.status.value}, completed in {elapsed*1000:.2f}ms")  # 日志3
+        
         return health
     except Exception as e:
-        logger.error("Health check failed", error=str(e))
+        logger.error(f"❌ [HEALTH_CHECK] Health check failed: {str(e)}")  # 日志4
         raise HTTPException(status_code=503, detail="Health check failed")
 
 
