@@ -42,10 +42,10 @@ class MetricsCollector:
         self._histograms: Dict[str, List[float]] = defaultdict(list)
         self._metric_points: Dict[str, List[MetricPoint]] = defaultdict(list)
         self._start_time = time.time()
-        self._request_counts = defaultdict(int)
-        self._request_times = defaultdict(list)
+        self._request_counts: Dict[str, int] = defaultdict(int)
+        self._request_times: Dict[str, List[float]] = defaultdict(list)
 
-    def increment_counter(self, name: str, value: float = 1.0, labels: Optional[Dict[str, str]] = None):
+    def increment_counter(self, name: str, value: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
         """Increment a counter metric"""
         logger.debug(f"📊 [METRICS] Counter increment: {name} += {value}")  # 日志1
         self._counters[name] += value
@@ -53,7 +53,7 @@ class MetricsCollector:
         self._record_point(name, value, MetricType.COUNTER, labels)
         logger.debug(f"✅ [METRICS] Metric point recorded for {name}")  # 日志3
 
-    def set_gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None):
+    def set_gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
         """Set a gauge metric"""
         logger.debug(f"📊 [METRICS] Gauge set: {name} = {value}")  # 日志4
         self._gauges[name] = value
@@ -61,7 +61,7 @@ class MetricsCollector:
         self._record_point(name, value, MetricType.GAUGE, labels)
         logger.debug(f"✅ [METRICS] Metric point recorded for {name}")  # 日志6
 
-    def record_histogram(self, name: str, value: float, labels: Optional[Dict[str, str]] = None):
+    def record_histogram(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
         """Record a histogram metric"""
         logger.debug(f"📊 [METRICS] Histogram record: {name} = {value}")  # 日志7
         self._histograms[name].append(value)
@@ -72,7 +72,7 @@ class MetricsCollector:
         self._record_point(name, value, MetricType.HISTOGRAM, labels)
         logger.debug(f"✅ [METRICS] Metric point recorded for {name}")  # 日志10
 
-    def record_request(self, endpoint: str, method: str, duration: float, status_code: int):
+    def record_request(self, endpoint: str, method: str, duration: float, status_code: int) -> None:
         """Record an API request"""
         logger.debug(f"📊 [METRICS] Request recorded: {method} {endpoint} - {status_code} in {duration*1000:.2f}ms")  # 日志11
         key = f"{method}:{endpoint}"
@@ -83,7 +83,7 @@ class MetricsCollector:
             self._request_times[key] = self._request_times[key][-1000:]
         logger.debug(f"✅ [METRICS] Request count updated: {key} = {self._request_counts[key]}")  # 日志13
 
-    def _record_point(self, name: str, value: float, type_: MetricType, labels: Optional[Dict[str, str]] = None):
+    def _record_point(self, name: str, value: float, type_: MetricType, labels: Optional[Dict[str, str]] = None) -> None:
         """Record a metric point with timestamp"""
         point = MetricPoint(
             timestamp=time.time(),
@@ -132,11 +132,18 @@ class MetricsCollector:
         values_sorted = sorted(values)
         n = len(values_sorted)
         
+        # Filter out invalid values for mean calculation
+        valid_values = [v for v in values if v == v and v not in (float('inf'), float('-inf'))]
+        if valid_values:
+            mean_value = sum(valid_values) / len(valid_values)
+        else:
+            mean_value = 0.0
+        
         return {
             "count": n,
             "min": values_sorted[0],
             "max": values_sorted[-1],
-            "mean": sum(values_sorted) / n,
+            "mean": mean_value,
             "p50": values_sorted[int(n * 0.5)],
             "p95": values_sorted[int(n * 0.95)] if n > 20 else values_sorted[-1],
             "p99": values_sorted[int(n * 0.99)] if n > 100 else values_sorted[-1]

@@ -49,6 +49,25 @@ class OverallHealth:
     version: str = "0.1.0"
 
 
+def format_uptime(seconds: float) -> str:
+    """Format uptime in human-readable format"""
+    days = int(seconds // 86400)
+    hours = int((seconds % 86400) // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    
+    parts = []
+    if days > 0:
+        parts.append(f"{days}d")
+    if hours > 0:
+        parts.append(f"{hours}h")
+    if minutes > 0:
+        parts.append(f"{minutes}m")
+    parts.append(f"{secs}s")
+    
+    return " ".join(parts)
+
+
 class HealthCheckRegistry:
     """Registry for health check functions"""
 
@@ -326,25 +345,6 @@ async def get_health_metrics():
     except Exception as e:
         logger.error("Health metrics failed", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to get health metrics")
-
-
-def format_uptime(seconds: float) -> str:
-    """Format uptime in human-readable format"""
-    days = int(seconds // 86400)
-    hours = int((seconds % 86400) // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    
-    parts = []
-    if days > 0:
-        parts.append(f"{days}d")
-    if hours > 0:
-        parts.append(f"{hours}h")
-    if minutes > 0:
-        parts.append(f"{minutes}m")
-    parts.append(f"{secs}s")
-    
-    return " ".join(parts)
 
 
 print("🚀 Enhanced Health Check System Loaded")

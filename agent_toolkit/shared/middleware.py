@@ -118,6 +118,9 @@ error_tracker = ErrorTracker()
 
 class MetricsMiddleware(BaseHTTPMiddleware):
     """Prometheus 指标收集中间件 - 产品化版本，同时集成内部Metrics收集器"""
+    
+    # 跟踪活跃连接数的内部计数器
+    _active_connections = 0
 
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
@@ -127,9 +130,9 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         # 增加活跃请求计数 - Prometheus
         ACTIVE_REQUESTS.labels(method=request.method, endpoint=endpoint).inc()
         
-        # 更新内部Metrics收集器的活跃连接数
-        metrics_collector.set_gauge("active_connections", 
-                                    len(ACTIVE_REQUESTS._value.get() if hasattr(ACTIVE_REQUESTS, '_value') else [0]) + 1)
+        # 更新内部活跃连接计数器
+        MetricsMiddleware._active_connections += 1
+        metrics_collector.set_gauge("active_connections", MetricsMiddleware._active_connections)
 
         try:
             response = await call_next(request)
@@ -160,9 +163,9 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             # 减少活跃请求计数 - Prometheus
             ACTIVE_REQUESTS.labels(method=request.method, endpoint=endpoint).dec()
             
-            # 更新内部Metrics收集器的活跃连接数
-            metrics_collector.set_gauge("active_connections", 
-                                        max(0, len(ACTIVE_REQUESTS._value.get() if hasattr(ACTIVE_REQUESTS, '_value') else [0]) - 1))
+            # 更新内部活跃连接计数器
+            MetricsMiddleware._active_connections = max(0, MetricsMiddleware._active_connections - 1)
+            metrics_collector.set_gauge("active_connections", MetricsMiddleware._active_connections)
 
             duration = time.time() - start_time
 

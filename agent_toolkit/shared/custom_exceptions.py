@@ -315,7 +315,7 @@ class ChainExecutionError(AgentToolkitException):
         )
 
 
-class TimeoutError(AgentToolkitException):
+class AgentToolkitTimeoutError(AgentToolkitException):
     """超时错误"""
     
     def __init__(
