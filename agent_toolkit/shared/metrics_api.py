@@ -4,6 +4,7 @@ Comprehensive metrics collection and API endpoints
 """
 
 import time
+import math
 import asyncio
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -48,7 +49,20 @@ class MetricsCollector:
     def increment_counter(self, name: str, value: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
         """Increment a counter metric"""
         logger.debug(f"📊 [METRICS] Counter increment: {name} += {value}")  # 日志1
-        self._counters[name] += value
+        
+        # Handle invalid values
+        if math.isnan(value) or math.isinf(value):
+            logger.debug(f"⚠️ [METRICS] Skipping invalid counter increment value: {value}")
+            self._record_point(name, 0.0, MetricType.COUNTER, labels)
+            logger.debug(f"✅ [METRICS] Metric point recorded for {name}")  # 日志3
+            return
+            
+        # Handle current value being NaN/inf
+        current = self._counters.get(name, 0.0)
+        if math.isnan(current) or math.isinf(current):
+            current = 0.0
+            
+        self._counters[name] = current + value
         logger.debug(f"✅ [METRICS] Counter updated: {name} = {self._counters[name]}")  # 日志2
         self._record_point(name, value, MetricType.COUNTER, labels)
         logger.debug(f"✅ [METRICS] Metric point recorded for {name}")  # 日志3
@@ -56,6 +70,14 @@ class MetricsCollector:
     def set_gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
         """Set a gauge metric"""
         logger.debug(f"📊 [METRICS] Gauge set: {name} = {value}")  # 日志4
+        
+        # Handle invalid values
+        if math.isnan(value) or math.isinf(value):
+            logger.debug(f"⚠️ [METRICS] Skipping invalid gauge value: {value}")
+            self._record_point(name, 0.0, MetricType.GAUGE, labels)
+            logger.debug(f"✅ [METRICS] Metric point recorded for {name}")  # 日志6
+            return
+            
         self._gauges[name] = value
         logger.debug(f"✅ [METRICS] Gauge updated: {name} = {self._gauges[name]}")  # 日志5
         self._record_point(name, value, MetricType.GAUGE, labels)
@@ -119,6 +141,7 @@ class MetricsCollector:
             "requests_per_second": total_requests / uptime if uptime > 0 else 0,
             "counters": dict(self._counters),
             "gauges": dict(self._gauges),
+            "histograms": dict(self._histograms),
             "request_stats": request_stats,
             "timestamp": datetime.now().isoformat()
         }
